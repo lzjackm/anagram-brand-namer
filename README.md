@@ -1,33 +1,33 @@
 # Anagram Brand Namer
 
 A naming tool for marketers. Feed it letters (or the words behind an acronym)
-and it finds **real, brandable names** built from those letters: exact matches,
-near-misses one letter away, and full anagrams. Every match is tagged with the
-brandable categories it belongs to (mythology, celestial, gemstones, creatures,
-Latin/Greek roots), so you can spot evocative, ownable names fast.
+and it finds **real, brandable names that are anagrams of your letters** —
+rearranged to use them all, or with a single letter added or removed. Every
+match is tagged with the brandable categories it belongs to (mythology,
+celestial, gemstones, creatures, Latin/Greek roots), so you can spot evocative,
+ownable names fast.
 
 It runs entirely **offline** against local word lists — no API keys, no rate
 limits, no network. Pure Python standard library, nothing to `pip install`.
 
 ```
-  → NOVA  [1-letter]
-  EXACT WORD
-    NOVA
-  EXACT NAME
-    NOVA = Nova (celestial), Nova (root: new)
-  WORDS ONE LETTER AWAY (6)
-    NOMA   NONA   NOTA   NOVAE  NOVAS  OVA
+  → STALA
+  EXACT ANAGRAM — uses all your letters (2)
+    ATLAS  TALAS
+  EXACT ANAGRAM — uses all your letters — NAMES (1)
+    ATLAS = Atlas (Greek myth)
+  PLUS ONE LETTER — your letters + 1 (13)
+    ALANTS  ALATES  ALTARS  ASLANT  ASTRAL  BASALT  ...
 ```
 
 ## Why marketers use it
 
-- **Spell a real word from your initials.** Got the words "Also True Later
-  Amazing Salsa"? It tells you they spell `ATLAS` — a real word *and* a Greek
-  Titan *and* a celestial term. Strong, ownable, memorable.
-- **Find near-miss names.** One letter added, removed, or swapped surfaces
-  brandable variants you'd never brainstorm by hand.
-- **Anagram mode.** Rearrange your letters into real words/names — the classic
-  branding trick (`STALA` → `ATLAS`).
+- **Turn loose letters into a real word.** Rearrange the letters you've got into
+  pronounceable, ownable names — the classic branding trick (`STALA` → `ATLAS`).
+- **Anagram an acronym's initials.** Feed the words behind an acronym; it takes
+  the initials and finds the real words they can spell.
+- **Stretch by one letter.** "Plus one" and "minus one" surface brandable
+  variants you'd never reach by hand.
 - **Category tags = brandability signal.** A candidate that lands in several
   pools (e.g. word + myth + celestial) is usually a stronger name.
 - **Pin constraints.** Force results to start or end with chosen letters.
@@ -60,7 +60,6 @@ as-you-type results.
 | --- | --- |
 | type in **Letters/phrase** | search live |
 | **Tab** | cycle fields: query → **Pin start with** → **Pin end with** |
-| **Ctrl-A** | toggle match mode (1-letter ↔ anagram) |
 | **↑ ↓ / PgUp / PgDn** | scroll long result lists |
 | **Ctrl-U** | clear the active field |
 | **Ctrl-Q** | quit |
@@ -73,9 +72,9 @@ python3 acronym_finder.py
 
 Then type at the prompt:
 
-- `ATLAS` — letters mode
-- `Also True Later Amazing Salsa` — phrase mode (first letter of each word → `ATLAS`)
-- `anagram` / `edit` — switch match mode (default `edit`)
+- `STALA` — letters mode (anagrams them → `ATLAS`, ...)
+- `Also True Later Amazing Salsa` — phrase mode (first letter of each word →
+  `ATLAS`, then anagrammed)
 - `start T` / `start off` — only show results beginning with `T`
 - `end X` / `end off` — only show results ending with `X`
 - `quit` — exit
@@ -83,22 +82,21 @@ Then type at the prompt:
 ### One-shot (scriptable)
 
 ```bash
-python3 acronym_finder.py ATLAS                  # letters
-python3 acronym_finder.py "Also True Later"      # phrase -> ATL
-python3 acronym_finder.py --anagram STALA        # anagram mode -> ATLAS
-python3 acronym_finder.py --start T --end Y BOLD # pinned start/end
+python3 acronym_finder.py STALA                  # letters -> ATLAS, ...
+python3 acronym_finder.py "Also True Later"      # phrase -> ATL, then anagrammed
+python3 acronym_finder.py --start T --end S STALA  # pinned start/end
 ```
 
-## Match modes
+## How matching works
 
-- **1-letter (default)** — the exact string plus everything one edit away: a
-  single letter inserted, deleted, or substituted, *in place*.
-  `CAT` → `COT`, `CART`, `SCAT`, `CHAT`, ...
-- **anagram** — real words and names that use your letters in *any order*,
-  either exactly or with one letter added/removed. Grouped into **EXACT
-  ANAGRAM**, **PLUS ONE LETTER**, **MINUS ONE LETTER**. `STALA` → `ATLAS`.
+Results are real words and names that are **anagrams of your letters**, grouped
+into three buckets:
 
-The `start` / `end` pins apply in both modes.
+- **EXACT ANAGRAM** — uses all your letters, rearranged (`STALA` → `ATLAS`)
+- **PLUS ONE LETTER** — your letters plus one more
+- **MINUS ONE LETTER** — your letters with one removed
+
+The `start` / `end` pins filter every bucket.
 
 ## What it searches
 

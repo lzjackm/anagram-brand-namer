@@ -14,7 +14,7 @@ import curses
 import acronym_finder as af
 
 
-def build_lines(query, prefix, suffix, mode, max_x):
+def build_lines(query, prefix, suffix, max_x):
     """Return (acronym, rows) where rows are (text, attr_key) for the current state."""
     width = max(20, max_x - 2)
     word = af.to_acronym(query)
@@ -25,10 +25,9 @@ def build_lines(query, prefix, suffix, mode, max_x):
                      "'Also True Later Amazing Salsa'.", "dim"))
         return word, rows
 
-    sections = af.find(word, prefix, suffix, mode)
+    sections = af.find(word, prefix, suffix)
     if not sections:
-        label = "anagram" if mode == "anagram" else "1-letter"
-        rows.append((f"No {label} matches for '{word}'.", "dim"))
+        rows.append((f"No anagrams found for '{word}'.", "dim"))
         return word, rows
 
     for sec in sections:
@@ -56,7 +55,6 @@ def run(stdscr):
     query, prefix, suffix = "", "", ""
     focus_order = ["query", "start", "end"]
     focus = "query"
-    mode = "edit"
     scroll = 0
 
     def safe(y, x, text, attr=curses.A_NORMAL):
@@ -69,14 +67,10 @@ def run(stdscr):
         h, w = stdscr.getmaxyx()
 
         # title bar
-        title = " ACRONYM FINDER · brandable name generator "
+        title = " ANAGRAM BRAND NAMER · brandable names from your letters "
         safe(0, 0, title.ljust(w - 1), curses.A_REVERSE)
-
-        # mode indicator
-        mode_desc = ("ANAGRAM (uses your letters, ±1, any order)"
-                     if mode == "anagram"
-                     else "1-LETTER (add / remove / swap, in place)")
-        safe(1, 0, f"  Mode: {mode_desc}   ·   Ctrl-A to toggle", attrs["dim"])
+        safe(1, 0, "  Finds real words & names that are anagrams of your "
+                   "letters (exact, +1, or −1).", attrs["dim"])
 
         # input fields
         m = {f: ("▸" if focus == f else " ") for f in focus_order}
@@ -89,7 +83,7 @@ def run(stdscr):
         safe(4, 18, suffix if suffix else "(none)",
              curses.A_NORMAL if suffix else attrs["dim"])
 
-        word, rows = build_lines(query, prefix, suffix, mode, w)
+        word, rows = build_lines(query, prefix, suffix, w)
         if word and word != query.strip().upper():
             safe(5, 0, f"  → acronym: {word}", attrs["dim"])
 
@@ -105,7 +99,7 @@ def run(stdscr):
                            f"(PgDn/↓ to scroll)", attrs["dim"])
 
         # footer
-        footer = (" Tab: field   Ctrl-A: mode   ↑↓/PgUp/PgDn: scroll   "
+        footer = (" Tab: switch field   ↑↓/PgUp/PgDn: scroll   "
                   "Ctrl-U: clear   Ctrl-Q: quit ")
         safe(h - 1, 0, footer.ljust(w - 1), curses.A_REVERSE)
 
@@ -119,9 +113,6 @@ def run(stdscr):
 
         if ch in (17,):                       # Ctrl-Q
             break
-        elif ch == 1:                          # Ctrl-A: toggle match mode
-            mode = "anagram" if mode == "edit" else "edit"
-            scroll = 0
         elif ch == 9:                          # Tab: cycle fields
             focus = focus_order[(focus_order.index(focus) + 1) % len(focus_order)]
         elif ch == 21:                         # Ctrl-U: clear active field

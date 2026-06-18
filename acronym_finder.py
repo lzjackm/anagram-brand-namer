@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
 """
-acronym_finder — interactive lookup with fuzzy (edit-distance-1) matching.
+anagram_brand_namer — turn letters (or an acronym's words) into brandable names.
 
-Given letters (or a phrase), it finds matches that are:
-  * an exact match, OR
-  * exactly one letter away: a single insertion, deletion, OR substitution.
+Give it some letters, or a phrase whose initials form an acronym, and it finds
+real words and names that are ANAGRAMS of those letters:
+  * EXACT  — uses all your letters, rearranged
+  * PLUS ONE LETTER  — your letters plus one more
+  * MINUS ONE LETTER — your letters with one removed
 
-It checks local lists (instant, offline, no rate limits):
+It searches local lists (instant, offline, no rate limits):
   * words.txt              — an English word list (ENABLE1, public domain, ~173k)
-  * named pools below      — brandable name categories, matched on LAST NAME,
-                             each match tagged with its category
+  * brandable name pools   — myth / celestial / creatures / gems / roots,
+                             matched on LAST NAME, each match tagged by category
 
 No third-party packages required — standard library only.
 """
@@ -18,12 +20,12 @@ import os
 import sys
 
 ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-MIN_LEN = 2  # ignore 1-letter candidates (too noisy)
+MIN_LEN = 2  # ignore 1-letter results (too noisy)
 HERE = os.path.dirname(os.path.abspath(__file__))
 WORDLIST = os.path.join(HERE, "words.txt")
 
 # Each pool: (filename, category label, subgroup style)
-#   subgroup style: "pantheon" -> "Greek myth", "meaning" -> "myth: x", None -> just label
+#   subgroup style: "pantheon" -> "Greek myth", "meaning" -> "root: light", None -> label
 POOLS = [
     ("mythical_figures.txt", "myth", "pantheon"),
     ("celestial.txt", "celestial", None),
@@ -36,9 +38,13 @@ WORDS = set()    # uppercase words
 NAMES = {}       # uppercase last-name -> list of (display_name, tag)
 CAT_COUNTS = {}  # category label -> count
 
+# anagram indexes, built lazily on first lookup
+_ANA_WORDS = None
+_ANA_NAMES = None
+
 
 def load_words(path=WORDLIST):
-    """Load the Scrabble word list into an uppercase set."""
+    """Load the English word list into an uppercase set."""
     global WORDS
     with open(path, encoding="utf-8") as fh:
         WORDS = {line.strip().upper() for line in fh if line.strip()}
@@ -50,15 +56,14 @@ def _make_tag(category, subgroup, style):
         return category
     if style == "pantheon":
         return f"{subgroup} {category}"      # "Greek myth"
-    if style == "meaning":
-        return f"{category}: {subgroup}"     # "root: light"
-    return f"{category}: {subgroup}"
+    return f"{category}: {subgroup}"         # "root: light"
 
 
 def load_names(pools=POOLS):
     """Load all named pools, keyed by the LAST word of each name (uppercased)."""
-    global NAMES, CAT_COUNTS
+    global NAMES, CAT_COUNTS, _ANA_WORDS, _ANA_NAMES
     NAMES, CAT_COUNTS = {}, {}
+    _ANA_WORDS = _ANA_NAMES = None  # force index rebuild after a reload
     for filename, category, style in pools:
         path = os.path.join(HERE, filename)
         if not os.path.exists(path):
@@ -92,28 +97,6 @@ def to_acronym(text):
     return "".join(letters)
 
 
-def edit_distance_1(word):
-    """All distinct strings exactly one edit (ins/del/sub) from `word`, uppercased."""
-    word = word.upper()
-    out = set()
-    for i in range(len(word)):                      # deletions
-        out.add(word[:i] + word[i + 1:])
-    for i in range(len(word)):                      # substitutions
-        for c in ALPHABET:
-            if c != word[i]:
-                out.add(word[:i] + c + word[i + 1:])
-    for i in range(len(word) + 1):                  # insertions
-        for c in ALPHABET:
-            out.add(word[:i] + c + word[i:])
-    out.discard(word)
-    return out
-
-
-# ---- anagram index (built lazily on first anagram lookup) ----
-_ANA_WORDS = None
-_ANA_NAMES = None
-
-
 def _canon(s):
     """Canonical anagram key: letters sorted."""
     return "".join(sorted(s))
@@ -145,43 +128,12 @@ def _section(title, kind, items, highlight=False):
     return {"title": title, "kind": kind, "items": items, "highlight": highlight}
 
 
-def find(word, prefix="", suffix="", mode="edit"):
-    """Return a list of result sections. mode: 'edit' (1 letter away) or 'anagram'."""
+def find(word, prefix="", suffix=""):
+    """Return anagram result sections for the given letters, honoring start/end pins."""
     word = word.strip().upper()
     prefix = prefix.strip().upper()
     suffix = suffix.strip().upper()
-    if mode == "anagram":
-        return _find_anagram(word, prefix, suffix)
-    return _find_edit(word, prefix, suffix)
 
-
-def _find_edit(word, prefix, suffix):
-    candidates = {word} | edit_distance_1(word)
-    candidates = {c for c in candidates if len(c) >= MIN_LEN}
-    if prefix:
-        candidates = {c for c in candidates if c.startswith(prefix)}
-    if suffix:
-        candidates = {c for c in candidates if c.endswith(suffix)}
-
-    word_hits = {c for c in candidates if c in WORDS}
-    name_hits = {c for c in candidates if c in NAMES}
-
-    sections = []
-    if word in word_hits:
-        sections.append(_section("EXACT WORD", "words", [word], highlight=True))
-    if word in name_hits:
-        sections.append(_section("EXACT NAME", "names",
-                                 [(word, NAMES[word])], highlight=True))
-    wf = sorted(c for c in word_hits if c != word)
-    if wf:
-        sections.append(_section(f"WORDS ONE LETTER AWAY ({len(wf)})", "words", wf))
-    nf = sorted((c, NAMES[c]) for c in name_hits if c != word)
-    if nf:
-        sections.append(_section(f"NAMES ONE LETTER AWAY ({len(nf)})", "names", nf))
-    return sections
-
-
-def _find_anagram(word, prefix, suffix):
     _build_anagram_index()
     letters = "".join(ch for ch in word if ch.isalpha())
     if not letters:
@@ -244,21 +196,18 @@ def section_to_rows(section, width):
     return rows
 
 
-def render(word, prefix="", suffix="", mode="edit"):
-    sections = find(word, prefix, suffix, mode)
+def render(word, prefix="", suffix=""):
+    sections = find(word, prefix, suffix)
     pins = []
     if prefix:
         pins.append(f"start '{prefix.upper()}'")
     if suffix:
         pins.append(f"end '{suffix.upper()}'")
-    label = "anagram" if mode == "anagram" else "1-letter"
-    extra = f"  [{label}]"
-    if pins:
-        extra += f"  (pinned: {', '.join(pins)})"
-    print(f"\n  → {word}{extra}")
+    pin = f"  (pinned: {', '.join(pins)})" if pins else ""
+    print(f"\n  → {word}{pin}")
 
     if not sections:
-        print(f"  No {label} matches for '{word}'.\n")
+        print(f"  No anagrams found for '{word}'.\n")
         return
     for sec in sections:
         for text, _ in section_to_rows(sec, 74):
@@ -270,14 +219,14 @@ def _banner():
     cats = ", ".join(f"{c} ({n})" for c, n in sorted(CAT_COUNTS.items()))
     return f"""\
 ============================================================
- ACRONYM FINDER  ·  brandable name generator
+ ANAGRAM BRAND NAMER
 ============================================================
- Type some letters (or a phrase) and it finds matches that
- are an EXACT match or exactly ONE LETTER AWAY -- a single
- letter added, removed, or swapped.
+ Type some letters (or a phrase) and it finds real words
+ and names that are ANAGRAMS of your letters -- rearranged
+ to use them all, or with one letter added or removed.
 
  It searches local lists (offline, no rate limits):
-   - {len(WORDS):,} Scrabble words (words.txt)
+   - {len(WORDS):,} English words (words.txt)
    - brandable name pools, each match TAGGED by category:
      {cats}
    (names match on LAST NAME only, e.g. "Zeus", "Nova")
@@ -285,15 +234,9 @@ def _banner():
  INPUT MODES
    letters   ATLAS
    phrase    Also True Later Amazing Salsa   -> first letter
-             of each word becomes ATLAS, then searched
+             of each word becomes ATLAS, then anagrammed
 
- MATCH MODE
-   anagram       switch to anagram mode: real words/names that use your
-                 letters exactly, or with one letter added/removed (any order)
-   edit          switch back to 1-letter mode (default: add/remove/swap, in place)
-   (one-shot: add --anagram before your input)
-
- PIN A STARTING / ENDING LETTER (optional filters, work in both modes)
+ PIN A STARTING / ENDING LETTER (optional filters)
    start T       only show results that begin with T
    start TH      prefixes work too (begin with TH)
    start off     turn the start pin back off
@@ -309,21 +252,16 @@ def _banner():
 
 def run_oneshot(argv):
     prefix = suffix = ""
-    mode = "edit"
     args = list(argv)
-    while args and args[0] in ("--start", "--end", "--anagram"):
+    while args and args[0] in ("--start", "--end"):
         flag = args[0]
-        if flag == "--anagram":
-            mode = "anagram"
-            args = args[1:]
-            continue
         val = args[1] if len(args) > 1 else ""
         if flag == "--start":
             prefix = val
         else:
             suffix = val
         args = args[2:]
-    render(to_acronym(" ".join(args)), prefix, suffix, mode)
+    render(to_acronym(" ".join(args)), prefix, suffix)
 
 
 def main():
@@ -345,7 +283,6 @@ def main():
     print(_banner())
 
     prefix = suffix = ""
-    mode = "edit"
     try:
         while True:
             raw = input("letters/phrase> ").strip()
@@ -356,17 +293,9 @@ def main():
 
             tokens = raw.split()
             cmd = tokens[0].lower()
-            if cmd in ("anagram", "edit", "mode"):
-                arg = tokens[1].lower() if len(tokens) > 1 else ""
-                if cmd == "edit" or arg == "off":
-                    mode = "edit"
-                else:
-                    mode = "anagram"
-                print(f"  match mode: {mode}\n")
-                continue
             if cmd in ("start", "end"):
                 arg = tokens[1] if len(tokens) > 1 else ""
-                edge = "start" if cmd == "start" else "end"
+                edge = cmd
                 if arg.lower() in {"off", "none", "clear", ""}:
                     if cmd == "start":
                         prefix = ""
@@ -387,7 +316,7 @@ def main():
             if not word.isalpha():
                 print("  letters only, please.\n")
                 continue
-            render(word, prefix, suffix, mode)
+            render(word, prefix, suffix)
     except (KeyboardInterrupt, EOFError):
         print()
 
