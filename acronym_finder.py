@@ -89,13 +89,22 @@ def to_acronym(text):
     tokens = text.split()
     if len(tokens) <= 1:
         return text.strip().upper()
-    letters = []
-    for tok in tokens:
+    return _initials(text)
+
+
+def _initials(text):
+    """First alphabetic letter of each word, uppercased.
+
+    A pin can be a letter or a word: 'A' -> 'A', 'Automated' -> 'A',
+    'Tall Hat' -> 'TH'. Lets the user pin by typing a real word.
+    """
+    out = []
+    for tok in text.split():
         for ch in tok:
             if ch.isalpha():
-                letters.append(ch.upper())
+                out.append(ch.upper())
                 break
-    return "".join(letters)
+    return "".join(out)
 
 
 def _canon(s):
@@ -150,8 +159,8 @@ def _diff_letter(letters, word, kind):
 def find(word, prefix="", suffix=""):
     """Return anagram result sections for the given letters, honoring start/end pins."""
     word = word.strip().upper()
-    prefix = prefix.strip().upper()
-    suffix = suffix.strip().upper()
+    prefix = _initials(prefix)   # pin may be a letter or a word -> its initial(s)
+    suffix = _initials(suffix)
 
     _build_anagram_index()
     letters = "".join(ch for ch in word if ch.isalpha())
@@ -219,10 +228,10 @@ def section_to_rows(section, width):
 def render(word, prefix="", suffix=""):
     sections = find(word, prefix, suffix)
     pins = []
-    if prefix:
-        pins.append(f"start '{prefix.upper()}'")
-    if suffix:
-        pins.append(f"end '{suffix.upper()}'")
+    if _initials(prefix):
+        pins.append(f"start '{_initials(prefix)}'")
+    if _initials(suffix):
+        pins.append(f"end '{_initials(suffix)}'")
     pin = f"  (pinned: {', '.join(pins)})" if pins else ""
     print(f"\n  → {word}{pin}")
 
@@ -258,11 +267,12 @@ def _banner():
 
  PIN A STARTING / ENDING LETTER (optional filters)
    start T       only show results that begin with T
-   start TH      prefixes work too (begin with TH)
+   start Tesla   a word works too -> uses its initial (T)
+   start Tall Hat   multiple words -> a prefix (TH)
    start off     turn the start pin back off
-   end X         only show results that end with X (e.g. end LY)
+   end S         only show results that end with S
    end off       turn the end pin back off
-   (one-shot: add --start T and/or --end X before your input)
+   (one-shot: add --start T and/or --end S before your input)
 
  OTHER
    quit / exit   leave the program
@@ -314,22 +324,23 @@ def main():
             tokens = raw.split()
             cmd = tokens[0].lower()
             if cmd in ("start", "end"):
-                arg = tokens[1] if len(tokens) > 1 else ""
-                edge = cmd
+                arg = " ".join(tokens[1:])  # pin may be a letter or word(s)
                 if arg.lower() in {"off", "none", "clear", ""}:
                     if cmd == "start":
                         prefix = ""
                     else:
                         suffix = ""
-                    print(f"  {edge} pin cleared.\n")
-                elif arg.isalpha():
+                    print(f"  {cmd} pin cleared.\n")
+                elif _initials(arg):
                     if cmd == "start":
-                        prefix = arg.upper()
+                        prefix = arg
                     else:
-                        suffix = arg.upper()
-                    print(f"  pinned: results must {edge} with '{arg.upper()}'.\n")
+                        suffix = arg
+                    via = f"  (from '{arg}')" if arg.upper() != _initials(arg) else ""
+                    print(f"  pinned: results must {cmd} with "
+                          f"'{_initials(arg)}'{via}.\n")
                 else:
-                    print(f"  usage: {cmd} <letters> | {cmd} off\n")
+                    print(f"  usage: {cmd} <letter or word> | {cmd} off\n")
                 continue
 
             word = to_acronym(raw)

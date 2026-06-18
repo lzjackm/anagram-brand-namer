@@ -76,12 +76,20 @@ def run(stdscr):
         m = {f: ("▸" if focus == f else " ") for f in focus_order}
         safe(2, 0, f"{m['query']} Letters/phrase: ", attrs["label"])
         safe(2, 18, query)
+        def pin_disp(raw):
+            derived = af._initials(raw)
+            if not raw:
+                return "(none)", "dim"
+            if derived and derived != raw.upper():
+                return f"{raw}   → {derived}", "plain"
+            return raw, "plain"
+
+        ptext, pattr = pin_disp(prefix)
+        stext, sattr = pin_disp(suffix)
         safe(3, 0, f"{m['start']} Pin start with: ", attrs["label"])
-        safe(3, 18, prefix if prefix else "(none)",
-             curses.A_NORMAL if prefix else attrs["dim"])
+        safe(3, 18, ptext, attrs[pattr])
         safe(4, 0, f"{m['end']} Pin end with:   ", attrs["label"])
-        safe(4, 18, suffix if suffix else "(none)",
-             curses.A_NORMAL if suffix else attrs["dim"])
+        safe(4, 18, stext, attrs[sattr])
 
         word, rows = build_lines(query, prefix, suffix, w)
         if word and word != query.strip().upper():
@@ -143,15 +151,13 @@ def run(stdscr):
             pass
         elif 32 <= ch <= 126:                  # printable
             c = chr(ch)
-            if focus == "query":
-                if c.isalpha() or c == " ":
+            if c.isalpha() or c == " ":        # pins accept a letter or a word
+                if focus == "query":
                     query += c
-            elif focus == "start":
-                if c.isalpha():
-                    prefix += c.upper()
-            else:
-                if c.isalpha():
-                    suffix += c.upper()
+                elif focus == "start":
+                    prefix += c
+                else:
+                    suffix += c
             scroll = 0
         # ignore everything else
 

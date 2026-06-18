@@ -76,7 +76,9 @@ Then type at the prompt:
 - `Also True Later Amazing Salsa` — phrase mode (first letter of each word →
   `ATLAS`, then anagrammed)
 - `start T` / `start off` — only show results beginning with `T`
-- `end X` / `end off` — only show results ending with `X`
+- `start Tesla` — a pin can be a **word**; it uses the word's initial (`T`).
+  Multiple words become a prefix (`Tall Hat` → `TH`).
+- `end S` / `end off` — only show results ending with `S`
 - `quit` — exit
 
 ### One-shot (scriptable)
@@ -96,7 +98,9 @@ into three buckets:
 - **PLUS ONE LETTER** — your letters plus one more
 - **MINUS ONE LETTER** — your letters with one removed
 
-The `start` / `end` pins filter every bucket.
+The `start` / `end` pins filter every bucket. A pin can be a single letter or a
+whole word — a word is reduced to its initial (`Tesla` → `T`), and several words
+become a multi-letter prefix (`Tall Hat` → `TH`).
 
 ## What it searches
 
