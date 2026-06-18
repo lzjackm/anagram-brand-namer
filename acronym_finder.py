@@ -18,6 +18,7 @@ No third-party packages required — standard library only.
 
 import os
 import sys
+from collections import Counter
 
 ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 MIN_LEN = 2  # ignore 1-letter results (too noisy)
@@ -128,6 +129,24 @@ def _section(title, kind, items, highlight=False):
     return {"title": title, "kind": kind, "items": items, "highlight": highlight}
 
 
+def _diff_letter(letters, word, kind):
+    """The single letter that differs between input `letters` and `word`.
+
+    kind 'plus'  -> the extra letter in `word`        -> '+X'
+    kind 'minus' -> the input letter missing in `word` -> '−X'
+    kind 'exact' -> '' (no change)
+    """
+    if kind == "plus":
+        diff = Counter(word) - Counter(letters)
+    elif kind == "minus":
+        diff = Counter(letters) - Counter(word)
+    else:
+        return ""
+    for ch in diff:  # exactly one letter, count 1
+        return ("+" if kind == "plus" else "−") + ch
+    return ""
+
+
 def find(word, prefix="", suffix=""):
     """Return anagram result sections for the given letters, honoring start/end pins."""
     word = word.strip().upper()
@@ -139,36 +158,36 @@ def find(word, prefix="", suffix=""):
     if not letters:
         return []
 
-    def words_for(keys):
-        out = set()
+    def collect(keys):
+        words, names = set(), set()
         for k in keys:
-            out.update(_ANA_WORDS.get(k, ()))
-        out = [w for w in out if len(w) >= MIN_LEN]
-        return sorted(_apply_pins(out, prefix, suffix))
-
-    def names_for(keys):
-        out = set()
-        for k in keys:
-            out.update(_ANA_NAMES.get(k, ()))
-        return sorted((k, NAMES[k]) for k in _apply_pins(list(out), prefix, suffix))
+            words.update(_ANA_WORDS.get(k, ()))
+            names.update(_ANA_NAMES.get(k, ()))
+        words = {w for w in words if len(w) >= MIN_LEN}
+        words = set(_apply_pins(list(words), prefix, suffix))
+        names = set(_apply_pins(list(names), prefix, suffix))
+        return words, names
 
     exact_keys = [_canon(letters)]
     plus_keys = [_canon(letters + c) for c in ALPHABET]
     minus_keys = [_canon(letters[:i] + letters[i + 1:]) for i in range(len(letters))]
 
     buckets = [
-        ("EXACT ANAGRAM — uses all your letters", exact_keys, True),
-        ("PLUS ONE LETTER — your letters + 1", plus_keys, False),
-        ("MINUS ONE LETTER — your letters − 1", minus_keys, False),
+        ("EXACT ANAGRAM — uses all your letters", exact_keys, "exact", True),
+        ("PLUS ONE LETTER — your letters + 1", plus_keys, "plus", False),
+        ("MINUS ONE LETTER — your letters − 1", minus_keys, "minus", False),
     ]
     sections = []
-    for title, keys, hl in buckets:
-        w = words_for(keys)
-        if w:
-            sections.append(_section(f"{title} ({len(w)})", "words", w, highlight=hl))
-        n = names_for(keys)
-        if n:
-            sections.append(_section(f"{title} — NAMES ({len(n)})", "names", n, highlight=hl))
+    for title, keys, kind, hl in buckets:
+        words, names = collect(keys)
+        # de-dupe: a string that is also a brandable name shows only in NAMES
+        pure_words = sorted(words - names)
+        word_items = [(w, _diff_letter(letters, w, kind)) for w in pure_words]
+        name_items = [(k, NAMES[k], _diff_letter(letters, k, kind)) for k in sorted(names)]
+        if word_items:
+            sections.append(_section(f"{title} ({len(word_items)})", "words", word_items, hl))
+        if name_items:
+            sections.append(_section(f"{title} — NAMES ({len(name_items)})", "names", name_items, hl))
     return sections
 
 
@@ -182,17 +201,18 @@ def section_to_rows(section, width):
     rows = [(section["title"], "label")]
     hl = "hit" if section["highlight"] else "plain"
     if section["kind"] == "words":
-        items = section["items"]
-        cw = max(len(w) for w in items) + 2
+        cells = [f"{w} ({annot})" if annot else w for w, annot in section["items"]]
+        cw = max(len(c) for c in cells) + 2
         per_row = max(1, (max(20, width) - 2) // cw)
-        for i in range(0, len(items), per_row):
-            rows.append(("  " + "".join(w.ljust(cw) for w in items[i:i + per_row]), hl))
+        for i in range(0, len(cells), per_row):
+            rows.append(("  " + "".join(c.ljust(cw) for c in cells[i:i + per_row]), hl))
     else:  # names
-        for key, entries in section["items"]:
+        for key, entries, annot in section["items"]:
+            label = f"{key} ({annot})" if annot else key
             if section["highlight"]:
-                rows.append((f"  {key} = {_fmt_names(entries)}", "hit"))
+                rows.append((f"  {label} = {_fmt_names(entries)}", "hit"))
             else:
-                rows.append((f"  {key:<11} {_fmt_names(entries)}", "plain"))
+                rows.append((f"  {label:<14} {_fmt_names(entries)}", "plain"))
     return rows
 
 
