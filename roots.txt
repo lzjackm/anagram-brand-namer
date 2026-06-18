@@ -1,0 +1,42 @@
+# Latin / Greek roots and short evocative words, with meanings.
+# Format: Word|meaning. Matched on the last word of the name.
+Lux|light
+Lumen|light
+Sol|sun
+Luna|moon
+Astra|stars
+Nova|new
+Veritas|truth
+Vero|true
+Aegis|protection
+Forte|strength
+Apex|peak
+Vox|voice
+Terra|earth
+Aqua|water
+Ignis|fire
+Ventus|wind
+Aether|upper air
+Nexus|connection
+Vita|life
+Aura|breeze
+Opus|work
+Magna|great
+Prima|first
+Ultra|beyond
+Omni|all
+Animus|spirit
+Cor|heart
+Arbor|tree
+Nox|night
+Chronos|time
+Kratos|power
+Logos|word
+Eos|dawn
+Fons|source
+Lucida|brightest
+Clarus|clear
+Verde|green
+Alba|white
+Nimbus|cloud
+Vertex|summit
